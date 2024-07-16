@@ -35,17 +35,31 @@ def after_request(response):
 @login_required     #Dashboard
 def index():
        #Dashboard
-    transactions = db.execute(
-        "SELECT id, user_id, amount, type, category, date"
+    expenses = db.execute(
+        "SELECT id, user_id, amount, type, date"
         " FROM transactions"
-        " WHERE user_id = ?", session['user_id']
+        " WHERE user_id = ? AND type = ?", session['user_id'], "expense"
     )
+    incomes = db.execute(
+        "SELECT id, user_id, amount, type, date"
+        " FROM transactions"
+        " WHERE user_id = ? AND type = ?", session['user_id'], "income"
+    )
+    total_expenses = 0;
+    for expense in expenses:
+        total_expenses += expense['amount']
 
-    print(transactions)
+    print(total_expenses)
+    total_income = 0
+    for income in incomes:
+        total_income += income['amount']
+        
+    print(total_income)
     user = db.execute(
         "SELECT * FROM users WHERE id = ?", session['user_id']
     )
     print(user)
+    balance = 0
     """
     grand_value = user[0]['cash']
     print(grand_value)
@@ -58,7 +72,7 @@ def index():
         print(f"Updated {grand_value}")
     print(f"ID {user[0]['id']}")
     """
-    return render_template("index.html", user=user, transactions=transactions)
+    return render_template("index.html", user=user, total_income=total_income, total_expenses=total_expenses, balance=balance)
 
 
  
@@ -66,15 +80,56 @@ def index():
 @app.route("/add_transaction", methods=["GET", "POST"])
 @login_required
 def add_transaction():
+    income_categories = ["Salary", "Business", "Investment", "Gift", "Other"]
+    expense_categories = ["Groceries", "Rent", "Utilities", "Entertainment", "Transport", "Other"]
+
     if request.method == "POST":
         amount = request.form.get("amount")
+        amount = int(amount)
         trans_type = request.form.get("type")
         category = request.form.get("category")
         date = request.form.get("date")
         user_id = session['user_id']
+        
+        if not amount or amount < 0:
+            flash("You must specify an amount", "info")
+            return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories)
+
+        if not trans_type:
+            flash("You must specify a transaction type", "info")
+            return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories)
+
+        if not category:
+            flash("Category is required", "info")
+            return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories)
+
+        if not date:
+            flash("Enter a valid date", "info")
+            return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories)
+        
+        db.execute(
+            "BEGIN TRANSACTION"
+        )
+        try:
+            db.execute(
+                "INSERT INTO transactions (user_id, amount, type, category, date)"
+                "VALUES (?, ?, ?, ?, ?)", user_id, amount, trans_type, category, date
+            )
+            db.execute(
+                "COMMIT"
+            )
+        except Exception as e:
+            db.execute (
+                "ROLLBACK"
+            )
+            print(e)
+            flash("Failed", "info")
+            return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories)
+            
+            
         flash("Transaction added successfully", "success")
-        return redirect(url_for("dashboard"))
-    return render_template("add_transaction.html")
+        return render_template("index.html")
+    return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories)
 
 
 @app.route("/history")

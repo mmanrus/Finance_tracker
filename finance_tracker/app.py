@@ -1,5 +1,6 @@
 import os
 import html
+from datetime import datetime
 from cs50 import SQL # type: ignore
 from flask import Flask, flash, redirect, render_template, request, session, url_for # type: ignore
 from flask_session import Session # type: ignore
@@ -34,46 +35,9 @@ def after_request(response):
 @app.route("/")     #Dashboard
 @login_required     #Dashboard
 def index():
-       #Dashboard
-    expenses = db.execute(
-        "SELECT id, user_id, amount, type, date"
-        " FROM transactions"
-        " WHERE user_id = ? AND type = ?", session['user_id'], "expense"
-    )
-    incomes = db.execute(
-        "SELECT id, user_id, amount, type, date"
-        " FROM transactions"
-        " WHERE user_id = ? AND type = ?", session['user_id'], "income"
-    )
-    total_expenses = 0;
-    for expense in expenses:
-        total_expenses += expense['amount']
-
-    print(total_expenses)
-    total_income = 0
-    for income in incomes:
-        total_income += income['amount']
-        
-    print(total_income)
-    user = db.execute(
-        "SELECT * FROM users WHERE id = ?", session['user_id']
-    )
-    print(user)
-    balance = 0
-    """
-    grand_value = user[0]['cash']
-    print(grand_value)
-    for stock in transactions:
-        if stock['total_price'] == None:
-            stock['total_price'] = 0
-            stock['total_shares'] = 0
-            stock['price_per_share'] = 0
-        grand_value += stock['total_price']
-        print(f"Updated {grand_value}")
-    print(f"ID {user[0]['id']}")
-    """
-    return render_template("index.html", user=user, total_income=total_income, total_expenses=total_expenses, balance=balance)
-
+    #Dashboard
+    data = fetch_dashboard_data()
+    return render_template("index.html", user=data['user'], total_income=data['total_income'], total_expenses=data['total_expenses'], balance=data['balance'])
 
  
 
@@ -85,7 +49,7 @@ def add_transaction():
 
     if request.method == "POST":
         amount = request.form.get("amount")
-        amount = int(amount)
+        amount = float(amount)
         trans_type = request.form.get("type")
         category = request.form.get("category")
         date = request.form.get("date")
@@ -107,36 +71,45 @@ def add_transaction():
             flash("Enter a valid date", "info")
             return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories)
         
-        db.execute(
-            "BEGIN TRANSACTION"
-        )
+        db.execute("BEGIN TRANSACTION")
         try:
             db.execute(
                 "INSERT INTO transactions (user_id, amount, type, category, date)"
                 "VALUES (?, ?, ?, ?, ?)", user_id, amount, trans_type, category, date
             )
+            # Get the last inserted transaction ID
+            transaction_id = db.execute("SELECT last_insert_rowid() AS id")[0]['id']
+            
+            # Prepare history entry
+            change_type = "Create"
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            db.execute(
+                "INSERT INTO transaction_history (transaction_id, amount, type, category, date, user_id, change_type, timestamp)"
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                ,transaction_id, amount, trans_type, category, date, user_id, change_type, timestamp
+            )
             db.execute(
                 "COMMIT"
             )
+            flash("Transaction added successfully", "success")
+            data = fetch_dashboard_data()
+            return render_template("index.html", user=data['user'], total_income=data['total_income'], total_expenses=data['total_expenses'], balance=data['balance'])
+
         except Exception as e:
-            db.execute (
-                "ROLLBACK"
-            )
+            db.execute("ROLLBACK")
             print(e)
             flash("Failed", "info")
             return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories)
             
             
-        flash("Transaction added successfully", "success")
-        return render_template("index.html")
     return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories)
 
 
-@app.route("/history")
+@app.route("/view_transaction")
 @login_required
-def history():
+def view_transaction():
     """Show history of transactions"""
-    return apology("TODO")
+    return render_template("view_transaction.html")
 
 
 
@@ -239,3 +212,38 @@ def register():
 def sell():
     """Sell shares of stock"""
     return apology("TODO")
+
+def fetch_dashboard_data():
+    user_id = session['user_id']
+    expenses = db.execute(
+        "SELECT id, user_id, amount, type, date"
+        " FROM transactions"
+        " WHERE user_id = ? AND type = ?", user_id, "expense"
+    )
+    incomes = db.execute(
+        "SELECT id, user_id, amount, type, date"
+        " FROM transactions"
+        " WHERE user_id = ? AND type = ?", user_id, "income"
+    )
+    total_expenses = 0;
+    for expense in expenses:
+        total_expenses += expense['amount']
+
+    print(total_expenses)
+    total_income = 0
+    for income in incomes:
+        total_income += income['amount']
+        
+    print(total_income)
+    user = db.execute(
+        "SELECT * FROM users WHERE id = ?", user_id
+    )
+    print(user)
+    balance = 0
+    
+    return {
+        'user': user,
+        'total_income': total_income,
+        'total_expenses': total_expenses,
+        'balance': balance
+    }

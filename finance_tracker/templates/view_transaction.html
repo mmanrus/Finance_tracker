@@ -4,8 +4,36 @@
 
 {% block main %}
 <div class="container mt-4">
-    <h1 class="display-4">View Transactions</h1>
-    <table class="table table-striped">
+    <div class="">
+        <h1 class="display-4">View Transactions</h1>
+        <label for="select-month">Filter by Month:</label>
+        <select name="" id="select-month">
+            <option value="">All</option>
+            <option value="01">January</option>
+            <option value="02">February</option>
+            <option value="03">March</option>
+            <option value="04">April</option>
+            <option value="05">May</option>
+            <option value="06">June</option>
+            <option value="07">July</option>
+            <option value="08">August</option>
+            <option value="09">September</option>
+            <option value="10">October</option>
+            <option value="11">November</option>
+            <option value="12">December</option>
+        <!--
+        </select>
+        <label for="select-day">Filter by Day:</label>
+        <select name="" id="select-day">
+
+        </select>
+        <label for="select-day">Filter by Day:</label>
+        <select name="" id="select-day">
+
+        </select>
+        -->
+    </div>
+    <table class="table table-striped" id="transaction-table">
         <thead>
             <tr>
                 <th scope="col">ID</th>
@@ -22,10 +50,35 @@
                 <td>{{ transaction.amount | usd }}</td>
                 <td>{{ transaction.type | title }}</td>
                 <td>{{ transaction.category | title }}</td>
-                <td>{{ transaction.date.strftime('%Y-%m-%d') }}</td>
+                <td class="transaction-date">{{ transaction.date.strftime('%Y-%m-%d') }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+<script>
+    document.getElementById('select-month').addEventListener('change', function() {
+        // Get the selected month from the dropdown
+        const selectedMonth = this.value;
+        // Get all the rows in the transaction table
+        const row = document.querySelectorAll('#transaction-table tbody tr');
+
+        // Loop through each row
+        row.forEach(row => {
+            // Get the date from the row
+            const date = row.querySelector('.transaction-date').textContent;
+            // Extract the month from the date
+            const month = date.split('-')[1];
+
+            // Show or hide the row based on the selected month
+            if (selectedMonth === '' || month === selectedMonth){
+                row.style.display = '';
+            }
+            else {
+                row.style.display = 'none';
+            }
+        }
+        );
+    })
+</script>
 {% endblock %}

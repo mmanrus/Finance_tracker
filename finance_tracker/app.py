@@ -108,8 +108,15 @@ def add_transaction():
 @app.route("/view_transaction")
 @login_required
 def view_transaction():
-    """Show history of transactions"""
-    return render_template("view_transaction.html")
+    user_id = session['user_id']
+    user_transactions = db.execute(
+        "SELECT * FROM transaction_history WHERE user_id = ?", user_id
+    )
+    
+    for transaction in user_transactions:
+        transaction['date'] = datetime.strptime(transaction['date'], '%Y-%m-%d')
+        
+    return render_template("view_transaction.html", user_transactions=user_transactions)
 
 
 

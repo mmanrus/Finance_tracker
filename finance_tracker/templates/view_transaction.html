@@ -7,7 +7,7 @@
     <div class="">
         <h1 class="display-4">View Transactions</h1>
         <label for="select-month">Filter by Month:</label>
-        <select name="" id="select-month">
+        <select name="" id="select-month" class="form-control mb3">
             <option value="">All</option>
             <option value="01">January</option>
             <option value="02">February</option>
@@ -21,8 +21,8 @@
             <option value="10">October</option>
             <option value="11">November</option>
             <option value="12">December</option>
-        <!--
         </select>
+        <!--
         <label for="select-day">Filter by Day:</label>
         <select name="" id="select-day">
 
@@ -46,11 +46,11 @@
         <tbody>
             {% for transaction in user_transactions %}
             <tr>
-                <th scope="row">{{ transaction.id }}</th>
-                <td>{{ transaction.amount | usd }}</td>
-                <td>{{ transaction.type | title }}</td>
-                <td>{{ transaction.category | title }}</td>
-                <td class="transaction-date">{{ transaction.date.strftime('%Y-%m-%d') }}</td>
+                <td scope="row"><b>{{ transaction.id }}</b></td>
+                <td scope="row">{{ transaction.amount | usd }}</td>
+                <td scope="row">{{ transaction.type | title }}</td>
+                <td scope="row">{{ transaction.category | title }}</td>
+                <td scope="row" class="transaction-date">{{ transaction.date.strftime('%Y-%m-%d') }}</td>
             </tr>
             {% endfor %}
         </tbody>

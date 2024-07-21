@@ -1,0 +1,31 @@
+{% extends 'layout.html' %}
+
+{% block title %}
+    Profile
+{% endblock%}
+
+{% block main %}
+
+    <h1>Profile</h1>
+    <form method="POST" action="/profile/{{ user[0]['id'] }}" class="border py-3">
+        <h3 class="mb-3">{{ user['username'] }}</h3>
+        <div class="row mb-3">
+            <label for="username" class="form-label text">New Username</label>
+            <input type="text" name="username" placeholder="Enter new username (leave empty if not changing)" class="form-control mx-auto w-50">
+        </div>
+        <div class="mb-3">
+            <label for="new-password" class="form-label">New Password</label>
+            <input type="password" name="new-password" placeholder="Enter new password (leave empty if not changing)" class="form-control mx-auto w-50">
+        </div>
+        <div class="mb-3">
+            <label for="repeat-password" class="form-label">Repeat New Password</label>
+            <input type="password" name="repeat-password" placeholder="Repeat new password" class="form-control mx-auto w-50">
+        </div>
+        <div class="mb-3">
+            <label for="current-password" class="form-label">Current Password</label>
+            <input type="password" name="current-password" placeholder="Enter your current password to confirm changes" class="form-control mx-auto w-50">
+        </div>
+        <button type="submit" class="btn btn-primary">Change</button>
+
+    </form>
+{% endblock %}

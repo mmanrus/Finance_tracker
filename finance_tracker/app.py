@@ -44,9 +44,12 @@ def index():
 @app.route("/add_transaction", methods=["GET", "POST"])
 @login_required
 def add_transaction():
-    income_categories = ["Salary", "Business", "Investment", "Gift", "Other"]
-    expense_categories = ["Groceries", "Rent", "Utilities", "Entertainment", "Transport", "Other"]
-
+    income_categories = ["Salary", "Business", "Investment", "Gift"]
+    expense_categories = ["Groceries", "Rent", "Utilities", "Entertainment", "Transport"]
+    user_id = session['user_id']
+    user = db.execute(
+        'SELECT * FROM users WHERE id = ?', user_id
+        )
     if request.method == "POST":
         amount = request.form.get("amount")
         amount = float(amount)
@@ -57,19 +60,19 @@ def add_transaction():
         
         if not amount or amount < 0:
             flash("You must specify an amount", "info")
-            return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories)
+            return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories, user=user)
 
         if not trans_type:
             flash("You must specify a transaction type", "info")
-            return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories)
+            return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories, user=user)
 
         if not category:
             flash("Category is required", "info")
-            return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories)
+            return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories, user=user)
 
         if not date:
             flash("Enter a valid date", "info")
-            return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories)
+            return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories, user=user)
         
         db.execute("BEGIN TRANSACTION")
         try:
@@ -79,7 +82,14 @@ def add_transaction():
             )
             # Get the last inserted transaction ID
             transaction_id = db.execute("SELECT last_insert_rowid() AS id")[0]['id']
-            
+            if trans_type == 'expense':
+                db.execute (
+                    "UPDATE users SET cash = cash - ? WHERE id = ?", amount, session['user_id']
+                )
+            else:
+                db.execute (
+                    "UPDATE users SET cash = cash + ? WHERE id = ?", amount, session['user_id']
+                )
             # Prepare history entry
             change_type = "Create"
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -99,10 +109,10 @@ def add_transaction():
             db.execute("ROLLBACK")
             print(e)
             flash("Failed", "info")
-            return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories)
+            return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories, user=user)
             
             
-    return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories)
+    return render_template("add_transaction.html", income_categories=income_categories , expense_categories = expense_categories, user=user)
 
 
 @app.route("/view_transaction")
@@ -112,11 +122,14 @@ def view_transaction():
     user_transactions = db.execute(
         "SELECT * FROM transaction_history WHERE user_id = ?", user_id
     )
+    user = db.execute(
+        "SELECT * FROM users WHERE id = ?", user_id
+    )
     
     for transaction in user_transactions:
         transaction['date'] = datetime.strptime(transaction['date'], '%Y-%m-%d')
         
-    return render_template("view_transaction.html", user_transactions=user_transactions)
+    return render_template("view_transaction.html", user_transactions=user_transactions, user=user)
 
 
 
@@ -213,13 +226,110 @@ def register():
     return render_template("register.html")
 
 
-
-@app.route("/sell", methods=["GET", "POST"])
+@app.route("/reports", methods=["GET"])
 @login_required
-def sell():
-    """Sell shares of stock"""
-    return apology("TODO")
+def reports():
+    # Fetch data from the database
+    user_id = session['user_id']
+    user = db.execute(
+        "SELECT * FROM users WHERE id = ?", user_id
+    )
+    
+    # Fetch all transactions
+    transactions = db.execute(
+        "SELECT id, user_id, amount, type, category, date FROM transactions WHERE user_id = ?", user_id
+    )
+    
+    # Aggregate data
+    income_by_category = {}
+    expense_by_category = {}
+    total_income = 0
+    total_expenses = 0
+    
+    for transaction in transactions:
+        if transaction['type'] == 'income':
+            total_income += transaction['amount']
+            if transaction['category'] not in income_by_category:
+                income_by_category[transaction['category']] = 0
+            income_by_category[transaction['category']] += transaction['amount']
+        elif transaction['type'] == 'expense':
+            total_expenses += transaction['amount']
+            if transaction['category'] not in expense_by_category:
+                expense_by_category[transaction['category']] = 0
+            expense_by_category[transaction['category']] += transaction['amount']
+    
+    balance = total_income - total_expenses
+    
+    # Render the template with the data
+    return render_template(
+        "reports.html",
+        income_by_category=income_by_category,
+        expense_by_category=expense_by_category,
+        total_income=total_income,
+        total_expenses=total_expenses,
+        balance=balance,
+        user=user
+    )
+    
+@app.route("/profile/<id>", methods=["GET", "POST"])
+@login_required
+def profile(id):
 
+    user = db.execute("SELECT * FROM users WHERE id = ?", (id,))
+    if not user:
+        return apology("User not found", 403)
+
+    if request.method == "POST":
+        username = request.form.get("username")
+        new_password = request.form.get("new-password")
+        repeat_password = request.form.get("repeat-password")
+        current_password = request.form.get("current-password")
+
+        if not check_password_hash(
+            user[0]["hash"], current_password
+        ):
+            return apology("Password is incorrect", 403)
+        # Check if username is being changed
+        if username and username != user[0]['username']:
+            # Check if the new username is available
+            rows = db.execute(
+                "SELECT * FROM users WHERE username = ?", username
+            )
+            if rows:
+                return apology("Username already taken", 403)
+            else:
+                # Update username in the database
+                db.execute(
+                    "UPDATE users SET username = ? WHERE id = ?", username, id
+                )
+                db.execute(
+                    "COMMIT"
+                )
+                flash("Username updated successfully", "success")
+
+        # Check if new password is being changed
+        if new_password:
+            if new_password != repeat_password:
+                return apology("Passwords do not match", 403)
+            else:
+                # Hash and update the new password in the database
+                hashed_password = generate_password_hash(new_password)
+                db.execute(
+                    "BEGIN TRANSACTION"
+                )
+                db.execute(
+                    "UPDATE users SET hash = ? WHERE id = ?", hashed_password, id
+                )
+                db.execute(
+                    "COMMIT"
+                )
+                flash("Password updated successfully", "success")
+
+        return redirect('/')
+    return render_template("profile.html", user=user)
+
+    
+    
 def fetch_dashboard_data():
     user_id = session['user_id']
     expenses = db.execute(
@@ -246,7 +356,9 @@ def fetch_dashboard_data():
         "SELECT * FROM users WHERE id = ?", user_id
     )
     print(user)
-    balance = 0
+    balance = user[0]['cash']
+    balance -= total_expenses
+    balance += total_income
     
     return {
         'user': user,

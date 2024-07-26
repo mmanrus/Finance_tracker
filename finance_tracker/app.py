@@ -52,7 +52,11 @@ def add_transaction():
         )
     if request.method == "POST":
         amount = request.form.get("amount")
-        amount = float(amount)
+        try:
+            amount = float(amount)
+        except ValueError as e:
+            flash("Transaction failed", "failed")
+            return render_template("profile.html", user=user)
         trans_type = request.form.get("type")
         category = request.form.get("category")
         date = request.form.get("date")
@@ -288,7 +292,8 @@ def profile(id):
         if not check_password_hash(
             user[0]["hash"], current_password
         ):
-            return apology("Password is incorrect", 403)
+            flash("Password do not match", "failed")
+            return render_template("profile.html", user=user)
         # Check if username is being changed
         if username and username != user[0]['username']:
             # Check if the new username is available
@@ -296,7 +301,8 @@ def profile(id):
                 "SELECT * FROM users WHERE username = ?", username
             )
             if rows:
-                return apology("Username already taken", 403)
+                flash("Username already taken", "failed")
+                return render_template("profile.html", user=user)
             else:
                 # Update username in the database
                 db.execute(
@@ -328,8 +334,29 @@ def profile(id):
         return redirect('/')
     return render_template("profile.html", user=user)
 
-    
-    
+@app.route('/add_balance/<id>', methods=['POST'])
+def add_balance(id):
+    user = db.execute(
+        'SELECT * FROM users WHERE id = ?', id
+    )
+    if request.method == "POST":
+        amount = request.form.get('balance')
+        try:
+            amount = float(amount)
+        except ValueError as e:
+            flash(e, "failed")
+            return render_template("profile.html", user=user)
+        if not amount or amount < 0:
+            flash("Please specify an amount", "failed")
+            return render_template("profile.html", user=user)
+        db.execute (
+                    "UPDATE users SET cash = cash + ? WHERE id = ?", amount, session['user_id']
+                )
+        
+        flash("Successfully added balance")
+        return redirect('/')
+
+    return render_template("profile.html", user=user)
 def fetch_dashboard_data():
     user_id = session['user_id']
     expenses = db.execute(

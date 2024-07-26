@@ -87,9 +87,14 @@ def add_transaction():
             # Get the last inserted transaction ID
             transaction_id = db.execute("SELECT last_insert_rowid() AS id")[0]['id']
             if trans_type == 'expense':
-                db.execute (
-                    "UPDATE users SET cash = cash - ? WHERE id = ?", amount, session['user_id']
-                )
+                user_cash = db.execute("SELECT cash FROM users WHERE id = ?", user_id)[0]['cash']
+                print(user_cash)
+                if user_cash < amount:
+                    flash("Not enough cash", "info")
+                    db.execute("ROLLBACK")
+                    return render_template("add_transaction.html", income_categories=income_categories, expense_categories=expense_categories, user=user)
+                db.execute("UPDATE users SET cash = cash - ? WHERE id = ?", amount, user_id)
+
             else:
                 db.execute (
                     "UPDATE users SET cash = cash + ? WHERE id = ?", amount, session['user_id']
